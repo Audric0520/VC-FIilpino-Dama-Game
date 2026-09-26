@@ -1,4 +1,5 @@
 import {
+  allDamaPosition,
   applyMove,
   DARK_SQUARES,
   DEFAULT_RULES,
@@ -104,6 +105,8 @@ function orderMoves(moves: Move[]): Move[] {
 
 function negamax(ctx: Ctx, b: Board, side: Side, depth: number, alpha: number, beta: number, ply: number): number {
   if ((++ctx.nodes & 1023) === 0 && Date.now() > ctx.deadline) throw TIMEOUT;
+  // Tournament rule: a position where every piece is a Dama is an immediate draw.
+  if (ctx.rules.allDamaDraw && allDamaPosition(b)) return 0;
   const moves = legalMoves(b, side, ctx.rules);
   if (moves.length === 0) return -WIN + ply;
   const sign = side === 1 ? 1 : -1;

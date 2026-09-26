@@ -224,7 +224,8 @@ export function MenuScreen(props: MenuProps) {
                 <span className="block text-sm font-semibold text-stone-100">Rule options</span>
                 <span className="block text-xs text-stone-400">
                   {rules.crownMidCapture ? 'Instant crowning' : 'Crown at end of move'} ·{' '}
-                  {rules.maxCapture ? 'Maximum capture required' : 'Any capture allowed'}
+                  {rules.maxCapture ? 'Maximum capture required' : 'Any capture allowed'} ·{' '}
+                  {rules.allDamaDraw ? 'All-Dama draw' : 'No all-Dama draw'}
                 </span>
               </span>
               <ChevronDown size={18} className={cn('text-stone-400 transition-transform', showRules && 'rotate-180')} />
@@ -242,6 +243,12 @@ export function MenuScreen(props: MenuProps) {
                   onChange={(v) => setRules({ ...rules, maxCapture: v })}
                   label="Maximum capture rule (tournament)"
                   description="When several captures exist, you must take the sequence that captures the most pieces."
+                />
+                <Toggle
+                  checked={rules.allDamaDraw}
+                  onChange={(v) => setRules({ ...rules, allDamaDraw: v })}
+                  label="All-Dama draw (tournament)"
+                  description="The game is immediately declared a draw as soon as every piece on the board is a Dama."
                 />
                 <p className="px-2 pt-1 text-[11px] text-stone-500">Applies to new games vs the computer and pass &amp; play. Puzzles always use the standard rules.</p>
               </div>

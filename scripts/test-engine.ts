@@ -1,4 +1,5 @@
 import {
+  allDamaPosition,
   applyMove,
   boardFromSetup,
   DEFAULT_RULES,
@@ -50,13 +51,13 @@ check('King slides any distance', legalMoves(b, 1).length === 12, String(legalMo
 b = boardFromSetup('c6', 'd7 g6');
 const inst = legalMoves(b, 1);
 check('Crown mid-capture continues as Dama', inst.length === 1 && moveNotation(inst[0]) === 'c6×e8×h5' && inst[0].promotes, inst.map(moveNotation).join(' '));
-const tour = legalMoves(b, 1, { maxCapture: false, crownMidCapture: false });
+const tour = legalMoves(b, 1, { maxCapture: false, crownMidCapture: false, allDamaDraw: false });
 check('Crown-at-end rule stops as man', tour.length === 1 && moveNotation(tour[0]) === 'c6×e8' && tour[0].promotes, tour.map(moveNotation).join(' '));
 
 // 8. Maximum capture option
 b = boardFromSetup('a2 g2', 'b3 f3 f5');
 const free = names(b, 1);
-const maxed = names(b, 1, { maxCapture: true, crownMidCapture: true });
+const maxed = names(b, 1, { maxCapture: true, crownMidCapture: true, allDamaDraw: false });
 check('Free capture choice (default)', free.length === 2, free.join(' '));
 check('Max capture rule filters', maxed.length === 1 && maxed[0] === 'g2×e4×g6', maxed.join(' '));
 
@@ -79,19 +80,48 @@ check('Blocked side loses (no legal moves)', !!oc && oc.winner === 2 && oc.reaso
 const oc2 = getOutcome(boardFromSetup('', 'g2'), 1, 0);
 check('No pieces left loses', !!oc2 && oc2.winner === 2 && oc2.reason === 'no-pieces', JSON.stringify(oc2));
 
-// 12. AI self-play sanity (terminates, legal moves only)
-function play(l1: Level, l2: Level) {
+// 12. All-Dama draw (tournament rule)
+const allDamaRules = { maxCapture: false, crownMidCapture: true, allDamaDraw: true };
+b = boardFromSetup('Ke4', 'Ka8');
+check('All-Dama position detected', allDamaPosition(b));
+check('All-Dama draw off by default', getOutcome(b, 1, 0) === null);
+const oc3 = getOutcome(b, 1, 0, allDamaRules);
+check('All-Dama draw when enabled', !!oc3 && oc3.winner === null && oc3.reason === 'all-dama', JSON.stringify(oc3));
+b = boardFromSetup('e4', 'Ka8');
+check('A man on the board blocks the all-Dama draw', !allDamaPosition(b) && getOutcome(b, 1, 0, allDamaRules) === null);
+b = boardFromSetup('Ke4', '');
+check('One side empty is not all-Dama', !allDamaPosition(b));
+const oc4 = getOutcome(b, 2, 0, allDamaRules);
+check('Capturing the last piece still wins', !!oc4 && oc4.winner === 1 && oc4.reason === 'no-pieces', JSON.stringify(oc4));
+b = boardFromSetup('b7', 'Kh3');
+const promoMove = legalMoves(b, 1, allDamaRules).find((m) => m.promotes)!;
+const afterPromo = applyMove(b, promoMove);
+check(
+  'Promotion completing all-Dama is a draw',
+  allDamaPosition(afterPromo) && getOutcome(afterPromo, 2, 0, allDamaRules)?.reason === 'all-dama',
+);
+check('Same promotion plays on when off', getOutcome(afterPromo, 2, 0) === null);
+
+// 13. AI respects the all-Dama draw (White is ahead: 2 Damas + man vs 1 Dama)
+b = boardFromSetup('b7 Kg2 Kh1', 'Ke6');
+const aiOn = chooseMove({ board: b, side: 1, level: 'hard', rules: allDamaRules, timeMs: 400 });
+check('AI avoids promoting into an all-Dama draw', !!aiOn && !aiOn.promotes, aiOn ? moveNotation(aiOn) : 'null');
+const aiOff = chooseMove({ board: b, side: 1, level: 'hard', timeMs: 400 });
+check('AI still promotes with the rule off', !!aiOff && aiOff.promotes, aiOff ? moveNotation(aiOff) : 'null');
+
+// 14. AI self-play sanity (terminates, legal moves only)
+function play(l1: Level, l2: Level, rules = DEFAULT_RULES) {
   let board = initialBoard();
   let turn: Side = 1;
   let quiet = 0;
   let plies = 0;
   const t0 = Date.now();
   for (;;) {
-    const o = getOutcome(board, turn, quiet);
-    if (o) return { o, plies, ms: Date.now() - t0 };
-    const m = chooseMove({ board, side: turn, level: turn === 1 ? l1 : l2, timeMs: 150 });
+    const o = getOutcome(board, turn, quiet, rules);
+    if (o) return { o, board, plies, ms: Date.now() - t0 };
+    const m = chooseMove({ board, side: turn, level: turn === 1 ? l1 : l2, timeMs: 150, rules });
     if (!m) throw new Error('AI returned null with moves available');
-    const legal = legalMoves(board, turn).some((x) => moveNotation(x) === moveNotation(m));
+    const legal = legalMoves(board, turn, rules).some((x) => moveNotation(x) === moveNotation(m));
     if (!legal) throw new Error('AI played illegal move');
     quiet = nextQuietCount(board, m, quiet);
     board = applyMove(board, m);
@@ -102,6 +132,14 @@ function play(l1: Level, l2: Level) {
 for (const [a, c] of [['hard', 'easy'], ['medium', 'hard'], ['hard', 'hard']] as [Level, Level][]) {
   const r = play(a, c);
   console.log(`Self-play P1=${a} P2=${c}: winner=${r.o.winner ?? 'draw'} (${r.o.reason}) after ${r.plies} plies in ${r.ms}ms`);
+}
+{
+  const r = play('hard', 'hard', allDamaRules);
+  check(
+    'All-Dama-draw self-play ends correctly',
+    r.o.reason !== 'all-dama' || (r.o.winner === null && allDamaPosition(r.board)),
+    `winner=${r.o.winner ?? 'draw'} (${r.o.reason}) after ${r.plies} plies`,
+  );
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nAll engine checks passed.');
