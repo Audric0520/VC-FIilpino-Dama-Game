@@ -79,7 +79,10 @@ export function PlayScreen({ config, onMenu, onRules }: { config: PlayConfig; on
   }
 
   function resultReason(oc: Outcome) {
-    if (!oc.winner) return `${DRAW_QUIET_LIMIT} consecutive Dama moves without a capture.`;
+    if (!oc.winner)
+      return oc.reason === 'all-dama'
+        ? 'Tournament rule: every piece on the board is a Dama.'
+        : `${DRAW_QUIET_LIMIT} consecutive Dama moves without a capture.`;
     const loser = other(oc.winner);
     return oc.reason === 'no-pieces' ? `${COLOR[loser]} has no pieces left.` : `${COLOR[loser]} has no legal moves left.`;
   }
@@ -361,7 +364,8 @@ export function PlayScreen({ config, onMenu, onRules }: { config: PlayConfig; on
                 {vsAI ? `${LEVEL_INFO[level].label} · ${LEVEL_INFO[level].tagalog}` : 'Local two-player'}
               </span>
               <span>
-                {rules.maxCapture ? 'Max capture' : 'Free capture'} · {rules.crownMidCapture ? 'Instant crown' : 'Crown at end'}
+                {rules.maxCapture ? 'Max capture' : 'Free capture'} · {rules.crownMidCapture ? 'Instant crown' : 'Crown at end'} ·{' '}
+                {rules.allDamaDraw ? 'All-Dama draw' : 'No all-Dama draw'}
               </span>
             </div>
           </div>

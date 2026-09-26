@@ -68,7 +68,20 @@ export function RulesModal({ open, onClose, rules }: { open: boolean; onClose: (
             You win when your opponent has <b>no pieces left</b> or <b>no legal moves</b> on their turn.
           </p>
         </Section>
-        <Section icon={<Handshake size={16} />} title="Draw (house rule)">
+        <Section icon={<Handshake size={16} />} title="Draws">
+          <p>
+            {rules.allDamaDraw ? (
+              <>
+                <b>All-Dama draw (tournament rule, on):</b> the moment <b>every piece on the board is a Dama</b>, the
+                game is immediately declared a draw.
+              </>
+            ) : (
+              <>
+                <b>All-Dama draw (tournament rule, off):</b> play continues even when every piece is a Dama, until one
+                side wins or another draw rule applies.
+              </>
+            )}
+          </p>
           <p>
             To prevent endless games, {DRAW_QUIET_LIMIT} consecutive moves made only by Damas with no capture is a draw.
           </p>

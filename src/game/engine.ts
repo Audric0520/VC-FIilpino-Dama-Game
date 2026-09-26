@@ -16,10 +16,12 @@ export interface Rules {
   maxCapture: boolean;
   /** A man touching the far row during a capture is crowned instantly and continues jumping as a Dama. */
   crownMidCapture: boolean;
+  /** Tournament option: the game is an immediate draw once every piece on the board is a Dama. */
+  allDamaDraw: boolean;
 }
 
 /** Rules exactly as specified: capture is mandatory (any capture may be chosen) and crowning is instant. */
-export const DEFAULT_RULES: Rules = { maxCapture: false, crownMidCapture: true };
+export const DEFAULT_RULES: Rules = { maxCapture: false, crownMidCapture: true, allDamaDraw: false };
 
 export interface Move {
   from: number;
@@ -237,6 +239,23 @@ export function countPieces(b: Board, s: Side) {
   return { men, kings, total: men + kings };
 }
 
+/**
+ * Tournament draw condition: both sides still have at least one piece and every
+ * piece on the board is a Dama (king).
+ */
+export function allDamaPosition(b: Board): boolean {
+  let p1 = 0;
+  let p2 = 0;
+  for (const sq of DARK_SQUARES) {
+    const v = b[sq];
+    if (v === 0) continue;
+    if (!isKing(v)) return false;
+    if (v > 0) p1++;
+    else p2++;
+  }
+  return p1 > 0 && p2 > 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* Notation                                                            */
 /* ------------------------------------------------------------------ */
@@ -284,10 +303,12 @@ export const DRAW_QUIET_LIMIT = 50;
 
 export interface Outcome {
   winner: Side | null;
-  reason: 'no-pieces' | 'no-moves' | 'draw';
+  reason: 'no-pieces' | 'no-moves' | 'draw' | 'all-dama';
 }
 
 export function getOutcome(board: Board, turn: Side, quietPlies: number, rules: Rules = DEFAULT_RULES): Outcome | null {
+  // Tournament rule: the moment every piece on the board is a Dama, the game is an immediate draw.
+  if (rules.allDamaDraw && allDamaPosition(board)) return { winner: null, reason: 'all-dama' };
   const moves = legalMoves(board, turn, rules);
   if (moves.length === 0) {
     const left = countPieces(board, turn).total;
