@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { FILES, isDarkSquare, isKing, squareName, toSq, type Board as BoardT, type Move } from '../game/engine';
 import { cn } from '../utils/cn';
+import { BoardArrows, type Arrow } from './BoardArrows';
 import { Crown } from './ui';
 
 export interface BoardProps {
@@ -23,6 +24,12 @@ export interface BoardProps {
   overlay?: ReactNode;
   showCoords?: boolean;
   className?: string;
+  /** Annotation arrows drawn over the board (see BoardArrows). */
+  arrows?: Arrow[];
+  /** Enables right-drag arrow drawing and click-to-clear. */
+  arrowsEnabled?: boolean;
+  onArrowAdd?: (arrow: Arrow) => void;
+  onArrowsClear?: () => void;
 }
 
 interface Cell {
@@ -52,6 +59,10 @@ export function DamaBoard({
   overlay,
   showCoords = true,
   className,
+  arrows = [],
+  arrowsEnabled = false,
+  onArrowAdd,
+  onArrowsClear,
 }: BoardProps) {
   const cells = useMemo(() => {
     const out: Cell[] = [];
@@ -63,6 +74,8 @@ export function DamaBoard({
       }
     return out;
   }, [flipped]);
+
+  const cellSquares = useMemo(() => cells.map((c) => c.sq), [cells]);
 
   const pieces = useMemo(() => {
     const list: { sq: number; v: number; id: number }[] = [];
@@ -90,6 +103,13 @@ export function DamaBoard({
   return (
     <div className={cn('board-wrap', className)}>
     <div className="board-frame select-none">
+      <BoardArrows
+        squares={cellSquares}
+        arrows={arrows}
+        enabled={arrowsEnabled}
+        onAdd={onArrowAdd}
+        onClear={onArrowsClear}
+      >
       <div className="board-surface relative aspect-square w-full">
         {/* Squares */}
         <div className="absolute inset-0 grid grid-cols-8 grid-rows-8">
@@ -176,6 +196,7 @@ export function DamaBoard({
         </div>
         {overlay}
       </div>
+      </BoardArrows>
 
       {showCoords && (
         <>

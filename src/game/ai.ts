@@ -143,6 +143,106 @@ export interface AIRequest {
   timeMs?: number;
 }
 
+// --- Position analysis (evaluation bar) -------------------------------------
+
+export interface AnalysisRequest {
+  board: Board;
+  /** Side to move; the score is reported from this side's point of view. */
+  side: Side;
+  rules?: Rules;
+  /** Optional search budget override in milliseconds. */
+  timeMs?: number;
+}
+
+export interface PositionAnalysis {
+  /** Search score in centi-pieces from the side-to-move's perspective. */
+  cp: number;
+  /** 0-100: the side to move's winning chances in percent. */
+  winPercent: number;
+  /** 1 = P1 (White), 2 = P2 (Black). */
+  side: Side;
+  depth: number;
+  nodes: number;
+  /** True when the search found a forced win/loss/draw. */
+  decisive: boolean;
+}
+
+const EVAL_TIME_MS = 600;
+
+/** Map a centi-piece score to a 0-100 winning-chance percentage. */
+export function evalPercent(cp: number): number {
+  if (cp >= WIN / 2) return 100;
+  if (cp <= -WIN / 2) return 0;
+  const p = 100 / (1 + Math.exp(-cp / 210));
+  return Math.min(100, Math.max(0, Math.round(p * 10) / 10));
+}
+
+/** Human-readable formatting of a centi-piece score. */
+export function formatEvalCp(cp: number): string {
+  if (cp >= WIN / 2) return '#win';
+  if (cp <= -WIN / 2) return '#loss';
+  const sign = cp > 0 ? '+' : cp < 0 ? '−' : '';
+  return `${sign}${(Math.abs(cp) / 100).toFixed(1)}`;
+}
+
+/**
+ * Analyse a position and return a score + win percentage from the side to
+ * move's point of view. Runs a full-width negamax search using the same
+ * evaluation the engine plays with.
+ */
+export function analyzePosition({ board, side, rules = DEFAULT_RULES, timeMs = EVAL_TIME_MS }: AnalysisRequest): PositionAnalysis {
+  const moves = legalMoves(board, side, rules);
+  const deadline = Date.now() + timeMs;
+  let nodes = 0;
+  let depthReached = 0;
+
+  if (moves.length === 0) {
+    return { cp: -WIN, winPercent: 0, side, depth: 0, nodes: 0, decisive: true };
+  }
+
+  const ctx: Ctx = { deadline, nodes: 0, rules };
+  const opp = other(side);
+  let rootMoves = orderMoves(moves.slice());
+  let alpha = -Infinity;
+  let decisive = false;
+
+  for (let depth = 1; depth <= MAX_PLY; depth++) {
+    try {
+      const scored: { m: Move; s: number }[] = [];
+      let bestHere = -Infinity;
+      let window = -Infinity;
+      for (const m of rootMoves) {
+        const child = applyMove(board, m);
+        const s = -negamax(ctx, child, opp, depth - 1, -Infinity, -window, 1);
+        if (s > bestHere) bestHere = s;
+        if (s > window) window = s;
+        scored.push({ m, s });
+      }
+      alpha = bestHere;
+      scored.sort((a, b) => b.s - a.s);
+      rootMoves = scored.map((x) => x.m);
+      depthReached = depth;
+      nodes = ctx.nodes;
+      if (Math.abs(alpha) > WIN / 2) {
+        decisive = true;
+        break;
+      }
+    } catch (e) {
+      if (e === TIMEOUT) break;
+      throw e;
+    }
+  }
+
+  return {
+    cp: alpha,
+    winPercent: evalPercent(alpha),
+    side,
+    depth: depthReached,
+    nodes,
+    decisive,
+  };
+}
+
 export function chooseMove({ board, side, level, rules = DEFAULT_RULES, timeMs }: AIRequest): Move | null {
   const moves = legalMoves(board, side, rules);
   if (moves.length === 0) return null;

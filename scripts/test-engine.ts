@@ -12,7 +12,7 @@ import {
   type Board,
   type Side,
 } from '../src/game/engine';
-import { chooseMove, type Level } from '../src/game/ai';
+import { analyzePosition, chooseMove, evalPercent, formatEvalCp, type Level } from '../src/game/ai';
 
 let failures = 0;
 function check(name: string, cond: boolean, extra = '') {
@@ -141,5 +141,32 @@ for (const [a, c] of [['hard', 'easy'], ['medium', 'hard'], ['hard', 'hard']] as
     `winner=${r.o.winner ?? 'draw'} (${r.o.reason}) after ${r.plies} plies`,
   );
 }
+
+// 15. Position analysis (evaluation bar)
+const startEval = analyzePosition({ board: initialBoard(), side: 1 });
+check(
+  'Initial position evaluates as balanced',
+  Math.abs(startEval.cp) < 80 && startEval.winPercent >= 35 && startEval.winPercent <= 65,
+  `cp=${startEval.cp} ${startEval.winPercent}%`,
+);
+
+const whiteUp = boardFromSetup('e4 c4', 'e6');
+const aheadEval = analyzePosition({ board: whiteUp, side: 1 });
+check('Material advantage scores for P1', aheadEval.cp > 0 && aheadEval.winPercent > 55, `cp=${aheadEval.cp}`);
+check('Same position flips for opponent', analyzePosition({ board: whiteUp, side: 2 }).cp < 0);
+
+check('evalPercent clamps forced results', evalPercent(1_000_000) === 100 && evalPercent(-1_000_000) === 0);
+check(
+  'formatEvalCp renders pawn-scale scores',
+  formatEvalCp(250) === '+2.5' && formatEvalCp(-100) === '\u22121.0' && formatEvalCp(0) === '0.0',
+  formatEvalCp(250),
+);
+
+const lostEval = analyzePosition({ board: boardFromSetup('', 'd5'), side: 1 });
+check('Position with no moves is a loss', lostEval.decisive && lostEval.winPercent === 0, `cp=${lostEval.cp}`);
+
+const allDamaEval = analyzePosition({ board: boardFromSetup('Ke4', 'Ka8'), side: 1, rules: allDamaRules });
+check('Analysis honours the all-Dama draw rule', allDamaEval.cp === 0 && allDamaEval.winPercent === 50, `cp=${allDamaEval.cp}`);
+check('evalPercent is monotonic', evalPercent(300) > evalPercent(100) && evalPercent(100) > 50 && evalPercent(-100) < 50);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nAll engine checks passed.');
