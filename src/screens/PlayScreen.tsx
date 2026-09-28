@@ -13,11 +13,13 @@ import {
   type Rules,
   type Side,
 } from '../game/engine';
-import type { Level } from '../game/ai';
-import { requestAIMove } from '../game/aiClient';
+import { formatEvalCp, type Level, type PositionAnalysis } from '../game/ai';
+import { requestAIMove, requestEval } from '../game/aiClient';
 import { sfx } from '../game/sound';
 import { makeSnapshot, useDamaGame, type CommitInfo, type RejectReason } from '../hooks/useDamaGame';
 import { DamaBoard } from '../components/Board';
+import type { Arrow } from '../components/BoardArrows';
+import { EvalBar } from '../components/EvalBar';
 import { CapturedScore, GameHeader } from '../components/GameHeader';
 import { MoveLog, newLogId, type LogEntry } from '../components/MoveLog';
 import { PlayerStrip } from '../components/PlayerStrip';
@@ -55,6 +57,9 @@ export function PlayScreen({ config, onMenu, onRules }: { config: PlayConfig; on
   const [overOpen, setOverOpen] = useState(false);
   const [hint, setHint] = useState<Move | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
+  const [arrows, setArrows] = useState<Arrow[]>([]);
+  const [analysis, setAnalysis] = useState<PositionAnalysis | null>(null);
+  const [evalBusy, setEvalBusy] = useState(false);
   const toastTimer = useRef<number | undefined>(undefined);
   const overTimer = useRef<number | undefined>(undefined);
 
@@ -194,6 +199,30 @@ export function PlayScreen({ config, onMenu, onRules }: { config: PlayConfig; on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vsAI, aiSide, level, rules, snap, outcome, game.busy]);
 
+  // --- Evaluation bar --------------------------------------------------------
+  // Re-analyse the position whenever it changes (vs Computer only). Runs in a
+  // dedicated worker so the bar keeps updating while the AI thinks.
+  useEffect(() => {
+    if (!vsAI) return;
+    const controller = new AbortController();
+    setEvalBusy(true);
+    requestEval({ board: snap.board, side: snap.turn, rules }, controller.signal).then((a) => {
+      if (controller.signal.aborted) return;
+      setAnalysis(a);
+      setEvalBusy(false);
+    });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vsAI, snap, rules]);
+
+  function addArrow(arrow: Arrow) {
+    setArrows((prev) => [...prev.filter((a) => !(a.from === arrow.from && a.to === arrow.to)), arrow]);
+  }
+
+  function clearArrows() {
+    setArrows([]);
+  }
+
   // --- Actions -------------------------------------------------------------
   function restart() {
     clearTimeout(overTimer.current);
@@ -202,6 +231,7 @@ export function PlayScreen({ config, onMenu, onRules }: { config: PlayConfig; on
     setHint(null);
     setThinking(false);
     setToast(null);
+    setArrows([]);
     game.reset(makeSnapshot(initialBoard(), 1));
   }
 
@@ -283,6 +313,9 @@ export function PlayScreen({ config, onMenu, onRules }: { config: PlayConfig; on
 
   const mustSquares = game.interactive && game.mustCapture && !game.partial ? game.movable : [];
   const flipped = vsAI && humanSide === 2;
+  // Evaluation bar (Play vs Computer): the analysis score is from the side to move's perspective.
+  const evalWhite = analysis ? (analysis.side === 1 ? analysis.winPercent : 100 - analysis.winPercent) : 50;
+  const evalLabel = analysis ? formatEvalCp(analysis.side === humanSide ? analysis.cp : -analysis.cp) : '–';
   const topSide: Side = flipped ? 1 : 2;
   const bottomSide: Side = flipped ? 2 : 1;
   const sideSub = (s: Side) =>
@@ -319,25 +352,33 @@ export function PlayScreen({ config, onMenu, onRules }: { config: PlayConfig; on
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center gap-4 px-3 py-4 sm:px-5 lg:flex-row lg:items-start lg:justify-center lg:gap-7 lg:py-6">
         <section className="board-col flex flex-col gap-2.5 fade-in">
           {strip(topSide)}
-          <DamaBoard
-            board={game.display.board}
-            ids={game.display.ids}
-            fading={game.display.fading}
-            moverSq={game.display.moverSq}
-            selected={game.selected}
-            targets={game.interactive ? game.targets : []}
-            victims={game.interactive ? game.victims : []}
-            mustSquares={mustSquares}
-            lastMove={game.busy ? null : snap.lastMove}
-            hint={hint}
-            flipped={flipped}
-            interactive={game.interactive}
-            clickable={game.interactive ? game.movable : []}
-            shake={game.shake}
-            promotedId={game.promotedId}
-            onSquareClick={game.clickSquare}
-            overlay={<BoardToast toast={toast} />}
-          />
+          <div className="flex items-stretch gap-2.5">
+            {vsAI && <EvalBar whitePercent={evalWhite} flipped={flipped} analyzing={evalBusy} label={evalLabel} />}
+            <DamaBoard
+              board={game.display.board}
+              ids={game.display.ids}
+              fading={game.display.fading}
+              moverSq={game.display.moverSq}
+              selected={game.selected}
+              targets={game.interactive ? game.targets : []}
+              victims={game.interactive ? game.victims : []}
+              mustSquares={mustSquares}
+              lastMove={game.busy ? null : snap.lastMove}
+              hint={hint}
+              flipped={flipped}
+              interactive={game.interactive}
+              clickable={game.interactive ? game.movable : []}
+              shake={game.shake}
+              promotedId={game.promotedId}
+              onSquareClick={game.clickSquare}
+              overlay={<BoardToast toast={toast} />}
+              arrows={arrows}
+              arrowsEnabled
+              onArrowAdd={addArrow}
+              onArrowsClear={clearArrows}
+              className="min-w-0 flex-1"
+            />
+          </div>
           {strip(bottomSide)}
         </section>
 
