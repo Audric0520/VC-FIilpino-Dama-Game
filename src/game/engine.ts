@@ -6,6 +6,11 @@
  *             -1 = Player 2 man, -2 = Player 2 Dama.
  * Player 1 starts at the bottom (rows 5-7) and moves "up" (towards row 0).
  * Player 2 starts at the top (rows 0-2) and moves "down" (towards row 7).
+ *
+ * Board orientation: the traditional Filipino board is "mirrored" — it sits so that each
+ * player has a dark square in the near-left corner, which puts the double corner on each
+ * player's left (see isDarkSquare). Play is on the dark squares, so Player 1 opens with
+ * pieces on a1 c1 e1 g1 / b2 d2 f2 h2 / a3 c3 e3 g3.
  */
 
 export type Side = 1 | 2;
@@ -39,10 +44,12 @@ export const toSq = (r: number, c: number) => r * 8 + c;
 export const onBoard = (r: number, c: number) => r >= 0 && r < 8 && c >= 0 && c < 8;
 
 /**
- * Filipino boards are traditionally "mirrored": the near-left corner is light and the
- * double corner sits on each player's left. Dark (playable) squares have an even row + col.
+ * Filipino boards are traditionally "mirrored": the board is turned so that each player has
+ * a dark square in the near-left corner (a1 for the bottom player, h8 for the top player),
+ * which puts the double corner on each player's left. Dark (playable) squares therefore
+ * have an odd row + col.
  */
-export const isDarkSquare = (r: number, c: number) => (r + c) % 2 === 0;
+export const isDarkSquare = (r: number, c: number) => (r + c) % 2 === 1;
 
 export const DARK_SQUARES: number[] = [];
 for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (isDarkSquare(r, c)) DARK_SQUARES.push(toSq(r, c));

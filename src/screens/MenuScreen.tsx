@@ -27,7 +27,7 @@ interface MenuProps {
 function usePreviewBoard() {
   return useMemo(() => {
     try {
-      const board = boardFromSetup('b1 d1 h1 a2 c2 g2 b3 f3 e4 g4 Kd7', 'a8 c8 g8 b7 f7 h7 a6 c6 g6 d5 h5 Kb5');
+      const board = boardFromSetup('g1 e1 a1 h2 f2 b2 g3 c3 d4 b4 Ke7', 'h8 f8 b8 g7 c7 a7 h6 f6 b6 e5 a5 Kg5');
       const ids = board.map((v, i) => (v ? i + 1 : 0));
       return { board, ids };
     } catch {
