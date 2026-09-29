@@ -27,8 +27,10 @@ export function RulesModal({ open, onClose, rules }: { open: boolean; onClose: (
       <div className="nice-scroll max-h-[65vh] space-y-5 overflow-y-auto px-6 py-5">
         <Section icon={<Grid3x3 size={16} />} title="Board & setup">
           <p>
-            An 8×8 board with alternating light and dark squares. Play happens <b>only on the dark squares</b>. Each player
-            starts with <b>12 pieces</b> on the dark squares of the three rows nearest to them.{' '}
+            An 8×8 board with alternating light and dark squares. Play happens <b>only on the dark squares</b>. The board sits in the
+            traditional <b>mirrored</b> orientation: each player has a <b>dark square in the near-left corner</b>, so the double
+            corner is on your left. Each player starts with <b>12 pieces</b> on the dark squares of the three rows nearest to them —
+            White begins on <b>a1 c1 e1 g1</b>, then <b>b2 d2 f2 h2</b> and <b>a3 c3 e3 g3</b>.{' '}
             <b>White (Player 1) moves first.</b>
           </p>
         </Section>
